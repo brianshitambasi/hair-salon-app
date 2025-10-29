@@ -1,47 +1,61 @@
-// entry file
+// =========================
+// Main Entry File - app.js
+// =========================
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const path = require("path");
 require("dotenv").config();
 
 const app = express();
+
+// ================= Middleware =================
 app.use(express.json());
 app.use(cors());
 
-// static file accessibility
-// app.use("/uploads",express.static("uploads"))
+// ✅ Static folder for uploaded images
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Routes - ONLY KEEP THIS SET
-//user routes
-const userRoutes=require('./routes/userRoutes')
-app.use('/user',userRoutes)
+// ================= Routes =================
+// User routes
+const userRoutes = require("./routes/userRoutes");
+app.use("/user", userRoutes);
 
-// booking routes
+// Booking routes
 const bookingRoutes = require("./routes/bookingRoutes");
 app.use("/booking", bookingRoutes);
 
-// hairstyle
+// Hairstyle routes
 const hairstyleRoutes = require("./routes/hairstyleRoutes");
 app.use("/hairstyle", hairstyleRoutes);
 
-// payment routes
+// Payment routes
 const paymentRoutes = require("./routes/paymentRoutes");
 app.use("/payment", paymentRoutes);
 
-// review routes
+// Review routes
 const reviewRoutes = require("./routes/reviewRoutes");
 app.use("/review", reviewRoutes);
 
-// shoproutes
-const shopRoutes= require("./routes/shopRoutes");
-app.use("/shop", shopRoutes); // Changed from "/shopRoutes" to "/shop"
+// Shop routes (includes image upload)
+const shopRoutes = require("./routes/shopRoutes");
+app.use("/shop", shopRoutes);
 
-// connection to the database
-mongoose.connect(process.env.MONGO_URI)
-.then(()=>console.log("mongodb connected"))
-.catch(err=>console.log("mongodb connection error",err))
+// Cart routes
+const cartRoutes = require("./routes/cartRoutes");
+app.use("/cart", cartRoutes);
 
-const PORT=process.env.PORT || 3002
-app.listen(PORT,()=>{
-    console.log(`server running on port ${PORT}`)
-})
+// ================= Database Connection =================
+mongoose
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch((err) => console.error("❌ MongoDB connection error:", err.message));
+
+// ================= Start Server =================
+const PORT = process.env.PORT || 3002;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});

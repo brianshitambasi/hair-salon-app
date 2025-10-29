@@ -5,19 +5,21 @@ const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     email: { type: String, unique: true, required: true },
-    password: { type: String, required: true }, // store hashed password
+    password: { type: String, required: true },
     phone: { type: String },
     role: {
       type: String,
       enum: ["customer", "shop", "admin"],
       default: "customer",
     },
-    profileImage: { type: String }, // optional, hosted on Cloudinary
+    profileImage: { type: String },
   },
   { timestamps: true }
 );
 
 // ================= SHOP SCHEMA =================
+
+
 const shopSchema = new mongoose.Schema(
   {
     owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
@@ -30,19 +32,23 @@ const shopSchema = new mongoose.Schema(
         price: { type: Number, required: true },
       },
     ],
+    image: { type: String }, // ✅ uploaded photo path
     rating: { type: Number, default: 0 },
     reviews: [{ type: mongoose.Schema.Types.ObjectId, ref: "Review" }],
   },
   { timestamps: true }
 );
 
+
+
+
 // ================= HAIRSTYLE SCHEMA =================
 const hairstyleSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     gender: { type: String, enum: ["male", "female", "unisex"], required: true },
-    imageUrl: { type: String, required: true }, // stored in Cloudinary
-    tags: [{ type: String }], // e.g. ["fade", "braids", "short"]
+    imageUrl: { type: String, required: true },
+    tags: [{ type: String }],
     shop: { type: mongoose.Schema.Types.ObjectId, ref: "Shop" },
   },
   { timestamps: true }
@@ -69,26 +75,35 @@ const bookingSchema = new mongoose.Schema(
 );
 
 // ================= PAYMENT SCHEMA =================
+// ================= PAYMENT SCHEMA =================
 const paymentSchema = new mongoose.Schema(
   {
     booking: { type: mongoose.Schema.Types.ObjectId, ref: "Booking", required: true },
     amount: { type: Number, required: true },
-    commission: { type: Number, required: true }, // 5%
+    commission: { type: Number, required: true },
     shopEarning: { type: Number, required: true },
     method: { type: String, enum: ["mpesa", "card"], required: true },
-    status: { type: String, enum: ["success", "failed"], default: "success" },
+    status: { type: String, enum: ["pending", "success", "failed"], default: "pending" },
     transactionRef: { type: String, required: true },
   },
   { timestamps: true }
 );
 
-// Auto-calculate 5% commission before saving
+
 paymentSchema.pre("save", function (next) {
   const commissionRate = 0.05;
   this.commission = this.amount * commissionRate;
   this.shopEarning = this.amount - this.commission;
   next();
 });
+
+paymentSchema.pre("validate", function (next) {
+  if (!this.transactionRef || this.transactionRef === "AUTO_GENERATE") {
+    this.transactionRef = "TXN-" + Date.now() + "-" + Math.floor(Math.random() * 10000);
+  }
+  next();
+});
+
 
 // ================= REVIEW SCHEMA =================
 const reviewSchema = new mongoose.Schema(
@@ -101,6 +116,28 @@ const reviewSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// ================= CART SCHEMA =================
+const cartSchema = new mongoose.Schema(
+  {
+    customer: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    items: [
+      {
+        shop: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", required: true },
+        serviceName: { type: String, required: true },
+        price: { type: Number, required: true },
+      },
+    ],
+    total: { type: Number, default: 0 },
+  },
+  { timestamps: true }
+);
+
+// Auto-calc total before saving
+cartSchema.pre("save", function (next) {
+  this.total = this.items.reduce((sum, item) => sum + item.price, 0);
+  next();
+});
+
 // ================= MODELS =================
 const User = mongoose.model("User", userSchema);
 const Shop = mongoose.model("Shop", shopSchema);
@@ -108,6 +145,7 @@ const Hairstyle = mongoose.model("Hairstyle", hairstyleSchema);
 const Booking = mongoose.model("Booking", bookingSchema);
 const Payment = mongoose.model("Payment", paymentSchema);
 const Review = mongoose.model("Review", reviewSchema);
+const Cart = mongoose.model("Cart", cartSchema);
 
 // ================= EXPORT =================
 module.exports = {
@@ -117,4 +155,5 @@ module.exports = {
   Booking,
   Payment,
   Review,
+  Cart,
 };

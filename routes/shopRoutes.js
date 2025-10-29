@@ -1,17 +1,22 @@
 const express = require("express");
 const router = express.Router();
+const shopController = require("../controller/shopController");
+const upload = require("../middleware/upload");
+const { auth } = require("../middleware/auth");
 
-// console.log("Loading shop routes...");
- const shopController = require("../controller/shopController");
-const {auth} = require("../middleware/auth");
-    
-    // console.log("Shop controller loaded successfully");
-    
-    router.post("/", auth, shopController.createShop);
-    router.get("/", shopController.getShops);
-    router.get("/:id", shopController.getShopById);
-    router.put("/:id", auth, shopController.updateShop);
-    router.delete("/:id", auth, shopController.deleteShop);
+// POST → Create shop (with FormData)
+router.post("/", auth, upload.single("image"), shopController.createShop);
 
+// GET all shops - ADD auth middleware here!
+router.get("/getMyShops", auth, shopController.getMyShops);
+
+// GET one shop
+router.get("/:id", shopController.getShopById);
+
+// PUT (update shop)
+router.put("/:id", auth, upload.single("image"), shopController.updateShop);
+
+// DELETE shop
+router.delete("/:id", auth, shopController.deleteShop);
 
 module.exports = router;

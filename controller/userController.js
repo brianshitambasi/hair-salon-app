@@ -152,3 +152,42 @@ exports.loginUser = async (req, res) => {
     });
   }
 };
+
+// ========================
+// Get User Profile
+// ========================
+exports.getUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.json({ user });
+  } catch (error) {
+    console.error("❌ ERROR in getUserProfile:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ========================
+// Update User Profile
+// ========================
+exports.updateUserProfile = async (req, res) => {
+  try {
+    const updates = {
+      name: req.body.name,
+      phone: req.body.phone,
+    };
+
+    if (req.file) {
+      updates.profileImage = `/uploads/${req.file.filename}`;
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(req.user.userId, updates, {
+      new: true,
+    }).select("-password");
+
+    res.json({ message: "Profile updated", user: updatedUser });
+  } catch (err) {
+    res.status(500).json({ message: "Error updating profile" });
+  }
+};
