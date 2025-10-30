@@ -2,38 +2,24 @@ const mongoose = require("mongoose");
 
 // ================= USER SCHEMA =================
 
-const userSchema = new mongoose.Schema(
-  {
-    name: { 
-      type: String, 
-      required: true 
-    },
-    email: { 
-      type: String, 
-      unique: true, 
-      required: true 
-    },
-    password: { 
-      type: String, 
-      required: true 
-    },
-    phone: { 
-      type: String, 
-      default: '' 
-    },
+// ========================
+  // User Schema
+  // ========================
+  
+  const userSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+    address: { type: String, required: true },
+    phone:{type:String, required:true},
     role: {
       type: String,
-      enum: ["customer", "shop", "admin"],
-      default: "customer",
+      enum: ["shopowner", "customer", "admin"],
+      required: true,
     },
-    profileImage: { 
-      type: String, 
-      default: '' 
-    },
-  },
-  { timestamps: true }
-);
-
+    active: { type: Boolean, default: true },
+  }, { timestamps: true });
+  
 
 
 // ================= SHOP SCHEMA =================
