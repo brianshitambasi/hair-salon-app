@@ -1,24 +1,96 @@
 const mongoose = require("mongoose");
 
 // ================= USER SCHEMA =================
+
 const userSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
-    email: { type: String, unique: true, required: true },
-    password: { type: String, required: true },
-    phone: { type: String },
+    name: { 
+      type: String, 
+      required: true 
+    },
+    email: { 
+      type: String, 
+      unique: true, 
+      required: true 
+    },
+    password: { 
+      type: String, 
+      required: true 
+    },
+    phone: { 
+      type: String, 
+      default: '' 
+    },
     role: {
       type: String,
       enum: ["customer", "shop", "admin"],
       default: "customer",
     },
-    profileImage: { type: String },
+    profileImage: { 
+      type: String, 
+      default: '' 
+    },
   },
   { timestamps: true }
 );
 
+
+
 // ================= SHOP SCHEMA =================
 
+//================== SETTINGS SCHEMA =================
+
+
+const settingsSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      unique: true
+    },
+    businessName: { 
+      type: String, 
+      default: '' 
+    },
+    address: { 
+      type: String, 
+      default: '' 
+    },
+    bio: { 
+      type: String, 
+      default: '' 
+    },
+    preferences: {
+      emailNotifications: { 
+        type: Boolean, 
+        default: true 
+      },
+      smsNotifications: { 
+        type: Boolean, 
+        default: false 
+      },
+      newsletter: { 
+        type: Boolean, 
+        default: true 
+      },
+      language: { 
+        type: String, 
+        default: 'en' 
+      },
+      theme: { 
+        type: String, 
+        default: 'light' 
+      }
+    }
+  },
+  { timestamps: true }
+);
+
+// Create index for faster queries
+settingsSchema.index({ userId: 1 });
+
+module.exports = mongoose.model('Settings', settingsSchema);
 
 const shopSchema = new mongoose.Schema(
   {
@@ -140,6 +212,7 @@ cartSchema.pre("save", function (next) {
 
 // ================= MODELS =================
 const User = mongoose.model("User", userSchema);
+const Settings = mongoose.model('Settings', settingsSchema);
 const Shop = mongoose.model("Shop", shopSchema);
 const Hairstyle = mongoose.model("Hairstyle", hairstyleSchema);
 const Booking = mongoose.model("Booking", bookingSchema);
@@ -150,6 +223,7 @@ const Cart = mongoose.model("Cart", cartSchema);
 // ================= EXPORT =================
 module.exports = {
   User,
+  Settings,
   Shop,
   Hairstyle,
   Booking,

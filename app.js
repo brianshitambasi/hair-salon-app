@@ -21,6 +21,10 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 const userRoutes = require("./routes/userRoutes");
 app.use("/user", userRoutes);
 
+//================== settings routes =================
+const settingsRoutes = require("./routes/settingsRoutes");
+app.use("/settings", settingsRoutes);
+
 // Booking routes
 const bookingRoutes = require("./routes/bookingRoutes");
 app.use("/booking", bookingRoutes);
