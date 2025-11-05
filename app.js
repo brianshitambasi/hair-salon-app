@@ -49,6 +49,10 @@ app.use("/shop", shopRoutes);
 const cartRoutes = require("./routes/cartRoutes");
 app.use("/cart", cartRoutes);
 
+// Product routes (includes image upload)
+const productRoutes = require("./routes/productRoutes");
+app.use("/product", productRoutes);
+
 // ================= Database Connection =================
 mongoose
   .connect(process.env.MONGO_URI, {

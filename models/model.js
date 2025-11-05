@@ -1,104 +1,53 @@
 const mongoose = require("mongoose");
 
 // ================= USER SCHEMA =================
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  address: { type: String, required: true },
+  phone: { type: String, required: true },
+  role: {
+    type: String,
+    enum: ["shopowner", "customer", "admin"],
+    required: true,
+  },
+  active: { type: Boolean, default: true },
+}, { timestamps: true });
 
-// ========================
-  // User Schema
-  // ========================
-  
-  const userSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
-    address: { type: String, required: true },
-    phone:{type:String, required:true},
-    role: {
-      type: String,
-      enum: ["shopowner", "customer", "admin"],
-      required: true,
-    },
-    active: { type: Boolean, default: true },
-  }, { timestamps: true });
-  
-
-
-// ================= SHOP SCHEMA =================
-
-//================== SETTINGS SCHEMA =================
-
-
+// ================= SETTINGS SCHEMA =================
 const settingsSchema = new mongoose.Schema(
   {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-      unique: true
-    },
-    businessName: { 
-      type: String, 
-      default: '' 
-    },
-    address: { 
-      type: String, 
-      default: '' 
-    },
-    bio: { 
-      type: String, 
-      default: '' 
-    },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+    businessName: { type: String, default: '' },
+    address: { type: String, default: '' },
+    bio: { type: String, default: '' },
     preferences: {
-      emailNotifications: { 
-        type: Boolean, 
-        default: true 
-      },
-      smsNotifications: { 
-        type: Boolean, 
-        default: false 
-      },
-      newsletter: { 
-        type: Boolean, 
-        default: true 
-      },
-      language: { 
-        type: String, 
-        default: 'en' 
-      },
-      theme: { 
-        type: String, 
-        default: 'light' 
-      }
-    }
+      emailNotifications: { type: Boolean, default: true },
+      smsNotifications: { type: Boolean, default: false },
+      newsletter: { type: Boolean, default: true },
+      language: { type: String, default: 'en' },
+      theme: { type: String, default: 'light' },
+    },
   },
   { timestamps: true }
 );
-
-// Create index for faster queries
 settingsSchema.index({ userId: 1 });
 
-module.exports = mongoose.model('Settings', settingsSchema);
-
+// ================= SHOP SCHEMA =================
 const shopSchema = new mongoose.Schema(
   {
     owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     name: { type: String, required: true },
     location: { type: String, required: true },
     description: { type: String },
-    services: [
-      {
-        serviceName: { type: String, required: true },
-        price: { type: Number, required: true },
-      },
-    ],
-    image: { type: String }, // ✅ uploaded photo path
+    services: [{ serviceName: { type: String, required: true }, price: { type: Number, required: true } }],
+    image: { type: String },
     rating: { type: Number, default: 0 },
     reviews: [{ type: mongoose.Schema.Types.ObjectId, ref: "Review" }],
   },
   { timestamps: true }
 );
-
-
-
 
 // ================= HAIRSTYLE SCHEMA =================
 const hairstyleSchema = new mongoose.Schema(
@@ -133,7 +82,6 @@ const bookingSchema = new mongoose.Schema(
 );
 
 // ================= PAYMENT SCHEMA =================
-// ================= PAYMENT SCHEMA =================
 const paymentSchema = new mongoose.Schema(
   {
     booking: { type: mongoose.Schema.Types.ObjectId, ref: "Booking", required: true },
@@ -146,7 +94,6 @@ const paymentSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
 
 paymentSchema.pre("save", function (next) {
   const commissionRate = 0.05;
@@ -161,7 +108,6 @@ paymentSchema.pre("validate", function (next) {
   }
   next();
 });
-
 
 // ================= REVIEW SCHEMA =================
 const reviewSchema = new mongoose.Schema(
@@ -189,22 +135,35 @@ const cartSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
-// Auto-calc total before saving
 cartSchema.pre("save", function (next) {
   this.total = this.items.reduce((sum, item) => sum + item.price, 0);
   next();
 });
 
+// ================= PRODUCT SCHEMA =================
+const productSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    description: { type: String },
+    price: { type: Number, required: true },
+    category: { type: String },
+    image: { type: String },
+    stock: { type: Number, default: 0 },
+    shop: { type: mongoose.Schema.Types.ObjectId, ref: "Shop" },
+  },
+  { timestamps: true }
+);
+
 // ================= MODELS =================
 const User = mongoose.model("User", userSchema);
-const Settings = mongoose.model('Settings', settingsSchema);
+const Settings = mongoose.model("Settings", settingsSchema);
 const Shop = mongoose.model("Shop", shopSchema);
 const Hairstyle = mongoose.model("Hairstyle", hairstyleSchema);
 const Booking = mongoose.model("Booking", bookingSchema);
 const Payment = mongoose.model("Payment", paymentSchema);
 const Review = mongoose.model("Review", reviewSchema);
 const Cart = mongoose.model("Cart", cartSchema);
+const Product = mongoose.model("Product", productSchema);
 
 // ================= EXPORT =================
 module.exports = {
@@ -216,4 +175,5 @@ module.exports = {
   Payment,
   Review,
   Cart,
+  Product,
 };
