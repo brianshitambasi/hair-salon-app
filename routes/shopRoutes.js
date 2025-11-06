@@ -4,11 +4,11 @@ const shopController = require("../controller/shopController");
 const upload = require("../middleware/upload");
 const { auth } = require("../middleware/auth");
 
+// ✅ ADD THIS ROUTE - Get all shops (public, no auth required)
+router.get("/", shopController.getAllShops);
+
 // POST → Create shop (with FormData)
 router.post("/", auth, upload.single("image"), shopController.createShop);
-
-// GET all shops (public)
-router.get("/", shopController.getAllShops);
 
 // GET my shops (protected)
 router.get("/getMyShops", auth, shopController.getMyShops);
