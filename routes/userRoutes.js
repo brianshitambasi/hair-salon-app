@@ -1,10 +1,10 @@
 const express = require("express");
 const router = express.Router();
-const userController = require("../controller/userController");
+const { registerUser, loginUser, getMe } = require("../controller/userController");
+const {auth} = require("../middleware/auth");
 
-
-// Public Routes - Only Register & Login
-router.post("/register", userController.registerUser);
-router.post("/login", userController.loginUser);
+router.post("/register", registerUser);
+router.post("/login", loginUser);
+router.get("/me", auth, getMe); // ✅ add this line
 
 module.exports = router;

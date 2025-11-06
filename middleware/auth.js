@@ -24,6 +24,8 @@ const auth=(req,res,next)=>{
      }
 }
 
+
+
 // middleware to authorize access based on the user role
 // accepts any number number of allowed roles(eg 'admin', 'teacher')
 // ...params -accepts any number of arguments and automatically puts them into an array
