@@ -1,7 +1,6 @@
 // =========================
 // Main Entry File - app.js
 // =========================
-
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -11,34 +10,18 @@ require("dotenv").config();
 const app = express();
 
 // ================= Middleware =================
-
-// ✅ Configure CORS to allow frontend access
-app.use(
-  cors({
-    origin: [
-      "http://localhost:3000",              // Local React app (development)
-      "https://hair-salon-app.vercel.app",  // Your deployed frontend (production)
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true, // enable if using cookies or auth headers
-  })
-);
-
-// ✅ Parse incoming requests
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(cors());
 
 // ✅ Static folder for uploaded images
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ================= Routes =================
-
 // User routes
 const userRoutes = require("./routes/userRoutes");
 app.use("/user", userRoutes);
 
-// Settings routes
+//================== settings routes =================
 const settingsRoutes = require("./routes/settingsRoutes");
 app.use("/settings", settingsRoutes);
 
@@ -76,13 +59,8 @@ mongoose
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(() => console.log("✅ MongoDB connected successfully"))
+  .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB connection error:", err.message));
-
-// ================= Test Route =================
-app.get("/", (req, res) => {
-  res.send("✅ Hair Salon API is running with proper CORS configuration!");
-});
 
 // ================= Start Server =================
 const PORT = process.env.PORT || 3002;
