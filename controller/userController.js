@@ -1,3 +1,4 @@
+// controller/userController.js
 const { User } = require("../models/model");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
@@ -10,14 +11,15 @@ exports.registerUser = async (req, res) => {
     let { name, email, password, phone, address, role } = req.body;
 
     if (!name || !email || !password || !phone || !address || !role) {
-      return res.json({ message: "All fields are required" });
+      return res.status(400).json({ message: "All fields are required" });
     }
 
     role = role.toLowerCase();
 
-    const validRoles = ["customer", "shopowner", "admin"];
+    // Fix: Match the enum values from your schema
+    const validRoles = ["shop", "customer", "admin"];
     if (!validRoles.includes(role)) {
-      return res.json({ message: "Invalid role" });
+      return res.status(400).json({ message: "Invalid role. Use: shop, customer, or admin" });
     }
 
     const existingUser = await User.findOne({ email });
@@ -40,7 +42,7 @@ exports.registerUser = async (req, res) => {
 
     return res.status(201).json({
       message: "User registered successfully",
-      newUser: {
+      user: {
         id: user._id,
         name: user.name,
         email: user.email,
@@ -89,6 +91,7 @@ exports.loginUser = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         address: user.address,
         role: user.role,
       },
@@ -100,11 +103,10 @@ exports.loginUser = async (req, res) => {
 };
 
 // ========================
-// Get Logged In User
+// Get User Profile
 // ========================
-exports.getMe = async (req, res) => {
+exports.getUserProfile = async (req, res) => {
   try {
-    // req.user comes from the auth middleware
     const user = await User.findById(req.user.userId).select("-password");
 
     if (!user) {
@@ -112,12 +114,41 @@ exports.getMe = async (req, res) => {
     }
 
     return res.status(200).json({
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      address: user.address,
-      role: user.role,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        address: user.address,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error("Error in getUserProfile:", error);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+// ========================
+// Get Current User (Me)
+// ========================
+exports.getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json({
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        address: user.address,
+        role: user.role,
+      },
     });
   } catch (error) {
     console.error("Error in getMe:", error);
