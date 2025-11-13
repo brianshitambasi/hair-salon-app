@@ -10,18 +10,27 @@ require("dotenv").config();
 const app = express();
 
 // ================= Middleware =================
+
+// CORS configuration
+const corsOptions = {
+  origin: "http://localhost:3000", // frontend URL
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true, // if you need cookies/auth headers
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
-app.use(cors());
 
 // ✅ Static folder for uploaded images
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ================= Routes =================
+
 // User routes
 const userRoutes = require("./routes/userRoutes");
 app.use("/user", userRoutes);
 
-//================== settings routes =================
+// Settings routes
 const settingsRoutes = require("./routes/settingsRoutes");
 app.use("/settings", settingsRoutes);
 
