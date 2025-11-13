@@ -1,13 +1,9 @@
 const express = require("express");
-const router = express.Router();
-const { createPayment, getPayments, getPaymentById, updatePayment, deletePayment, mpesaCallback } = require("../controller/paymentController");
 const { auth } = require("../middleware/auth");
+const controller = require("../controller/paymentController");
+const router = express.Router();
 
-router.post("/", auth, createPayment); // initiate mpesa stk push
-router.post("/callback", mpesaCallback); // mpesa callback
-router.get("/", auth, getPayments);
-router.get("/:id", auth, getPaymentById);
-router.put("/:id", auth, updatePayment);
-router.delete("/:id", auth, deletePayment);
+router.post("/", auth, controller.createPayment);
+router.get("/", auth, controller.getPayments);
 
 module.exports = router;

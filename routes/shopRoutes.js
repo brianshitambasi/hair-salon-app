@@ -1,25 +1,41 @@
 const express = require("express");
 const router = express.Router();
-const shopController = require("../controller/shopController");
-const upload = require("../middleware/upload");
 const { auth } = require("../middleware/auth");
+const {
+  createShop,
+  getAllShops,
+  getMyShops,
+  getShopById,
+  updateShop,
+  deleteShop,
+} = require("../controller/shopController");
+const multer = require("multer");
+const path = require("path");
 
-// ✅ ADD THIS ROUTE - Get all shops (public, no auth required)
-router.get("/", shopController.getAllShops);
+// ===== MULTER SETUP =====
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/shops");
+  },
+  filename: (req, file, cb) => {
+    cb(
+      null,
+      file.fieldname +
+        "-" +
+        Date.now() +
+        path.extname(file.originalname)
+    );
+  },
+});
 
-// POST → Create shop (with FormData)
-router.post("/", auth, upload.single("image"), shopController.createShop);
+const upload = multer({ storage });
 
-// GET my shops (protected)
-router.get("/getMyShops", auth, shopController.getMyShops);
-
-// GET one shop
-router.get("/:id", shopController.getShopById);
-
-// PUT (update shop)
-router.put("/:id", auth, upload.single("image"), shopController.updateShop);
-
-// DELETE shop
-router.delete("/:id", auth, shopController.deleteShop);
+// ===== ROUTES =====
+router.post("/", auth, upload.single("image"), createShop);
+router.get("/", getAllShops); // public
+router.get("/my", auth, getMyShops);
+router.get("/:id", getShopById);
+router.put("/:id", auth, upload.single("image"), updateShop);
+router.delete("/:id", auth, deleteShop);
 
 module.exports = router;

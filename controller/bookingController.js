@@ -1,142 +1,71 @@
-const { Booking, Shop } = require("../models/model");
+const mongoose = require("mongoose");
+const { Booking, Shop, Cart } = require("../models/model");
 
 /**
- * @desc Create a new booking
- * @route POST /booking
+ * @desc Checkout Cart → Create Booking
+ * @route POST /booking/checkout
  * @access Private (Customer only)
  */
-exports.createBooking = async (req, res) => {
+exports.checkoutCart = async (req, res) => {
   try {
-    const { shop, services, dateTime } = req.body;
+    const customerId = req.user.userId;
+    const cart = await Cart.findOne({ customer: customerId }).populate("items.shop");
 
-    // Validate
-    if (!shop || !Array.isArray(services) || services.length === 0 || !dateTime) {
-      return res.status(400).json({
-        message: "Missing required fields: shop, services[], and dateTime are required.",
-      });
-    }
+    if (!cart || cart.items.length === 0)
+      return res.status(400).json({ message: "Your cart is empty" });
 
-    // Validate service fields
-    for (const s of services) {
-      if (!s.serviceName || !s.price) {
-        return res.status(400).json({
-          message: "Each service must include serviceName and price.",
-        });
-      }
-    }
+    const shopId = cart.items[0].shop._id;
+    const totalPrice = cart.total;
 
-    const parsedDate = new Date(dateTime);
-    if (isNaN(parsedDate.getTime())) {
-      return res.status(400).json({ message: "Invalid dateTime format." });
-    }
-
-    // Create booking
     const booking = new Booking({
-      customer: req.user.userId,
-      shop,
-      services,
-      dateTime: parsedDate,
+      customer: customerId,
+      shop: shopId,
+      services: cart.items.map((i) => ({
+        serviceName: i.serviceName,
+        price: i.price,
+      })),
+      totalPrice,
+      dateTime: req.body.dateTime,
+      status: "pending",
     });
 
     await booking.save();
-    await booking.populate("customer", "name email");
-    await booking.populate("shop", "name location");
+    await Cart.deleteOne({ _id: cart._id });
 
-    res.status(201).json({
-      message: "Booking created successfully",
-      booking,
-    });
+    res.status(201).json({ message: "Booking created successfully", booking });
   } catch (error) {
-    console.error("Error creating booking:", error);
-    res.status(500).json({
-      message: "Error creating booking",
-      error: error.message,
-    });
+    res.status(500).json({ message: "Error creating booking", error: error.message });
   }
 };
 
 /**
- * @desc Get all bookings (filtered by role)
+ * @desc Get bookings (by role)
  * @route GET /booking
- * @access Private
  */
 exports.getBookings = async (req, res) => {
   try {
-    let bookings;
-
-    if (req.user.role === "admin") {
-      // Admin gets all
-      bookings = await Booking.find()
-        .populate("customer", "name email")
-        .populate("shop", "name location");
-    } else if (req.user.role === "shop") {
-      // Shop owner: get bookings for owned shops
-      const ownedShops = await Shop.find({ owner: req.user.userId });
-      const shopIds = ownedShops.map((s) => s._id);
-      bookings = await Booking.find({ shop: { $in: shopIds } })
-        .populate("customer", "name email")
-        .populate("shop", "name location");
-    } else {
-      // Customer: only their own
-      bookings = await Booking.find({ customer: req.user.userId })
-        .populate("customer", "name email")
-        .populate("shop", "name location");
+    let query = {};
+    if (req.user.role === "customer") query.customer = req.user.userId;
+    if (req.user.role === "shop") {
+      const shops = await Shop.find({ owner: req.user.userId });
+      query.shop = { $in: shops.map((s) => s._id) };
     }
 
-    res.status(200).json(bookings);
-  } catch (error) {
-    res.status(500).json({
-      message: "Error fetching bookings",
-      error: error.message,
-    });
-  }
-};
-
-exports.getBookingById = async (req, res) => {
-  try {
-    const booking = await Booking.findById(req.params.id)
-      .populate("customer", "name email")
-      .populate("shop", "name location");
-
-    if (!booking) return res.status(404).json({ message: "Booking not found" });
-
-    res.status(200).json(booking);
-  } catch (error) {
-    res.status(500).json({
-      message: "Error fetching booking",
-      error: error.message,
-    });
-  }
-};
-
-
-
-exports.getBookingsForMyShops = async (req, res) => {
-  try {
-    // Ensure only shop owners can access
-    if (req.user.role !== "shop") {
-      return res.status(403).json({ message: "Access denied. Shop owners only." });
-    }
-
-    // Find shops owned by this user
-    const userShops = await Shop.find({ owner: req.user.userId });
-    const shopIds = userShops.map((s) => s._id);
-
-    // Find bookings for those shops
-    const bookings = await Booking.find({ shop: { $in: shopIds } })
-      .populate("customer", "name email")
+    const bookings = await Booking.find(query)
+      .populate("customer", "name email phone")
       .populate("shop", "name location")
-      .populate("payment");
+      .sort({ createdAt: -1 });
 
     res.status(200).json(bookings);
-  } catch (error) {
-    res.status(500).json({
-      message: "Error fetching bookings for your shops",
-      error: error.message,
-    });
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching bookings", error: err.message });
   }
 };
 
+/**
+ * @desc Update booking status (Shop owner or Customer cancel)
+ * @route PATCH /booking/:id
+ */
 exports.updateBooking = async (req, res) => {
   try {
     const { status } = req.body;
@@ -144,51 +73,50 @@ exports.updateBooking = async (req, res) => {
 
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-    // Authorization checks
-    if (req.user.role === "customer" && booking.customer.toString() !== req.user.userId) {
-      return res.status(403).json({ message: "Not authorized" });
+    const isCustomer = booking.customer.toString() === req.user.userId;
+    const isShopOwner = booking.shop.owner.toString() === req.user.userId;
+    const isAdmin = req.user.role === "admin";
+
+    if (isCustomer && status === "cancelled" && booking.status === "pending") {
+      booking.status = "cancelled";
+      booking.cancelledByCustomer = true;
+    } else if (isShopOwner && ["confirmed", "completed", "cancelled"].includes(status)) {
+      booking.status = status;
+      booking.approvedByShop = status === "confirmed";
+    } else if (isAdmin) {
+      booking.status = status;
+    } else {
+      return res.status(403).json({ message: "Not authorized for this action" });
     }
 
-    if (req.user.role === "shop" && booking.shop.owner.toString() !== req.user.userId) {
-      return res.status(403).json({ message: "Not authorized" });
-    }
-
-    booking.status = status;
     await booking.save();
-
-    res.status(200).json({
-      message: "Booking status updated successfully",
-      booking,
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: "Error updating booking",
-      error: error.message,
-    });
+    res.status(200).json({ message: "Booking updated", booking });
+  } catch (err) {
+    res.status(500).json({ message: "Error updating booking", error: err.message });
   }
 };
 
 /**
- * @desc Delete booking
+ * @desc Delete booking (Customer before confirmation or Admin)
  * @route DELETE /booking/:id
- * @access Private (Customer or Admin)
  */
 exports.deleteBooking = async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
-
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-    if (booking.customer.toString() !== req.user.userId && req.user.role !== "admin") {
-      return res.status(403).json({ message: "Not authorized" });
-    }
+    const isCustomer = booking.customer.toString() === req.user.userId;
+    const isAdmin = req.user.role === "admin";
 
-    await Booking.findByIdAndDelete(req.params.id);
+    if (!isCustomer && !isAdmin)
+      return res.status(403).json({ message: "Not authorized" });
+
+    if (["confirmed", "completed"].includes(booking.status) && !isAdmin)
+      return res.status(400).json({ message: "Cannot delete confirmed booking" });
+
+    await booking.deleteOne();
     res.status(200).json({ message: "Booking deleted successfully" });
-  } catch (error) {
-    res.status(500).json({
-      message: "Error deleting booking",
-      error: error.message,
-    });
+  } catch (err) {
+    res.status(500).json({ message: "Error deleting booking", error: err.message });
   }
 };
