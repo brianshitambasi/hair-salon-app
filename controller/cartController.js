@@ -1,20 +1,43 @@
-const { Cart } = require("../models/model");
+// controller/cartController.js
+const { Cart, Shop } = require("../models/model");
 
-// Add service to cart
+// Add item to cart
 exports.addToCart = async (req, res) => {
   try {
+    const customerId = req.user.userId;
     const { shop, serviceName, price } = req.body;
-    let cart = await Cart.findOne({ customer: req.user.userId });
 
-    if (!cart) cart = new Cart({ customer: req.user.userId, items: [] });
-
-    if (cart.items.length > 0 && cart.items[0].shop.toString() !== shop) {
-      return res.status(400).json({ message: "Cart must contain services from one shop only" });
+    if (!shop || !serviceName || !price) {
+      return res.status(400).json({ message: "Shop, serviceName, and price are required" });
     }
 
-    cart.items.push({ shop, serviceName, price });
-    await cart.save();
+    // Verify shop exists
+    const shopExists = await Shop.findById(shop);
+    if (!shopExists) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
 
+    let cart = await Cart.findOne({ customer: customerId });
+
+    if (!cart) {
+      cart = new Cart({
+        customer: customerId,
+        items: [{ shop, serviceName, price }],
+      });
+    } else {
+      // Check if item already exists in cart
+      const existingItem = cart.items.find(
+        item => item.shop.toString() === shop && item.serviceName === serviceName
+      );
+
+      if (existingItem) {
+        return res.status(400).json({ message: "Service already in cart" });
+      }
+
+      cart.items.push({ shop, serviceName, price });
+    }
+
+    await cart.save();
     res.status(200).json({ message: "Service added to cart", cart });
   } catch (error) {
     res.status(500).json({ message: "Error adding to cart", error: error.message });
@@ -23,21 +46,49 @@ exports.addToCart = async (req, res) => {
 
 // Get cart
 exports.getCart = async (req, res) => {
-  const cart = await Cart.findOne({ customer: req.user.userId }).populate("items.shop", "name location");
-  if (!cart) return res.status(200).json({ message: "Cart empty" });
-  res.json(cart);
+  try {
+    const customerId = req.user.userId;
+    const cart = await Cart.findOne({ customer: customerId }).populate("items.shop");
+
+    if (!cart) {
+      return res.status(200).json({ items: [], total: 0 });
+    }
+
+    res.status(200).json(cart);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching cart", error: error.message });
+  }
 };
 
-// Remove service
+// Remove from cart
 exports.removeFromCart = async (req, res) => {
-  const cart = await Cart.findOne({ customer: req.user.userId });
-  cart.items = cart.items.filter(i => i._id.toString() !== req.params.itemId);
-  await cart.save();
-  res.json({ message: "Removed from cart", cart });
+  try {
+    const customerId = req.user.userId;
+    const { itemId } = req.params;
+
+    const cart = await Cart.findOne({ customer: customerId });
+
+    if (!cart) {
+      return res.status(404).json({ message: "Cart not found" });
+    }
+
+    cart.items = cart.items.filter(item => item._id.toString() !== itemId);
+    await cart.save();
+
+    res.status(200).json({ message: "Item removed from cart", cart });
+  } catch (error) {
+    res.status(500).json({ message: "Error removing from cart", error: error.message });
+  }
 };
 
 // Clear cart
 exports.clearCart = async (req, res) => {
-  await Cart.findOneAndDelete({ customer: req.user.userId });
-  res.json({ message: "Cart cleared" });
+  try {
+    const customerId = req.user.userId;
+    await Cart.findOneAndDelete({ customer: customerId });
+
+    res.status(200).json({ message: "Cart cleared successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Error clearing cart", error: error.message });
+  }
 };
