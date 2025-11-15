@@ -11,11 +11,12 @@ const app = express();
 
 // ================= Middleware =================
 
-// CORS configuration
+// CORS configuration - UPDATED with PATCH method
 const corsOptions = {
-  origin: "http://localhost:3000", // frontend URL
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  credentials: true, // if you need cookies/auth headers
+  origin: ["http://localhost:3000", "https://your-frontend-domain.com"], // Add your production frontend URL
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], // ✅ ADDED PATCH METHOD
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
 };
 
 app.use(cors(corsOptions));
@@ -62,6 +63,15 @@ app.use("/cart", cartRoutes);
 const productRoutes = require("./routes/productRoutes");
 app.use("/product", productRoutes);
 
+// ================= Health Check Route =================
+app.get("/health", (req, res) => {
+  res.status(200).json({ 
+    message: "Server is running successfully", 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // ================= Database Connection =================
 mongoose
   .connect(process.env.MONGO_URI, {
@@ -71,8 +81,29 @@ mongoose
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB connection error:", err.message));
 
+// ================= Error Handling Middleware =================
+app.use((err, req, res, next) => {
+  console.error("Error:", err.stack);
+  res.status(500).json({ 
+    message: "Something went wrong!", 
+    error: process.env.NODE_ENV === 'production' ? {} : err.message 
+  });
+});
+
+// ================= 404 Handler =================
+app.use((req, res) => {
+  res.status(404).json({ 
+    message: "Route not found",
+    path: req.path,
+    method: req.method
+  });
+});
+
 // ================= Start Server =================
 const PORT = process.env.PORT || 3002;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🌐 CORS enabled for: ${corsOptions.origin.join(', ')}`);
+  console.log(`✅ Allowed methods: ${corsOptions.methods.join(', ')}`);
 });
