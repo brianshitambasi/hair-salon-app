@@ -84,6 +84,7 @@ bookingSchema.pre("save", function (next) {
 });
 
 // ================= PAYMENT SCHEMA =================
+// ================= PAYMENT SCHEMA =================
 const paymentSchema = new mongoose.Schema(
   {
     booking: { type: mongoose.Schema.Types.ObjectId, ref: "Booking", required: true },
@@ -93,15 +94,24 @@ const paymentSchema = new mongoose.Schema(
     method: { type: String, enum: ["mpesa", "card"], required: true },
     status: { type: String, enum: ["pending", "success", "failed"], default: "pending" },
     transactionRef: { type: String, required: true },
+    // ADD THESE MISSING FIELDS:
+    checkoutRequestId: { 
+      type: String 
+    },
+    failureReason: { 
+      type: String 
+    }
   },
   { timestamps: true }
 );
+
 paymentSchema.pre("save", function (next) {
   const rate = 0.05;
   this.commission = this.amount * rate;
   this.shopEarning = this.amount - this.commission;
   next();
 });
+
 paymentSchema.pre("validate", function (next) {
   if (!this.transactionRef) {
     this.transactionRef = "TXN-" + Date.now() + "-" + Math.floor(Math.random() * 10000);
