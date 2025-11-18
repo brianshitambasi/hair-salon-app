@@ -9,17 +9,32 @@ require("dotenv").config();
 
 const app = express();
 
-// ================= Middleware =================
+// ================= Improved CORS Configuration =================
 
-// CORS configuration - UPDATED with PATCH method
+// Handle preflight requests explicitly
+app.options('*', cors()); // This handles ALL preflight requests
+
 const corsOptions = {
-  origin: ["http://localhost:3000", "https://your-frontend-domain.com"], // Add your production frontend URL
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], // ✅ ADDED PATCH METHOD
+  origin: ["http://localhost:3000", "https://your-frontend-domain.com"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   credentials: true,
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
+  allowedHeaders: [
+    "Content-Type", 
+    "Authorization", 
+    "X-Requested-With",
+    "Accept",
+    "Origin",
+    "Access-Control-Request-Method",
+    "Access-Control-Request-Headers"
+  ],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 };
 
+// Apply CORS middleware
 app.use(cors(corsOptions));
+
+// ================= Middleware =================
 app.use(express.json());
 
 // ✅ Static folder for uploaded images
@@ -106,4 +121,5 @@ app.listen(PORT, () => {
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🌐 CORS enabled for: ${corsOptions.origin.join(', ')}`);
   console.log(`✅ Allowed methods: ${corsOptions.methods.join(', ')}`);
+  console.log(`🔧 Preflight requests handled`);
 });
