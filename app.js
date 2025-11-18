@@ -9,30 +9,25 @@ require("dotenv").config();
 
 const app = express();
 
-// ================= Improved CORS Configuration =================
-
-// Handle preflight requests explicitly
-app.options('*', cors()); // This handles ALL preflight requests
-
-const corsOptions = {
+// ================= CORS Configuration =================
+app.use(cors({
   origin: ["http://localhost:3000", "https://your-frontend-domain.com"],
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   credentials: true,
-  allowedHeaders: [
-    "Content-Type", 
-    "Authorization", 
-    "X-Requested-With",
-    "Accept",
-    "Origin",
-    "Access-Control-Request-Method",
-    "Access-Control-Request-Headers"
-  ],
-  preflightContinue: false,
-  optionsSuccessStatus: 204
-};
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
+}));
 
-// Apply CORS middleware
-app.use(cors(corsOptions));
+// Manual preflight handler for all routes
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    res.header('Access-Control-Allow-Origin', req.headers.origin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    return res.status(200).end();
+  }
+  next();
+});
 
 // ================= Middleware =================
 app.use(express.json());
@@ -119,7 +114,4 @@ const PORT = process.env.PORT || 3002;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🌐 CORS enabled for: ${corsOptions.origin.join(', ')}`);
-  console.log(`✅ Allowed methods: ${corsOptions.methods.join(', ')}`);
-  console.log(`🔧 Preflight requests handled`);
 });
