@@ -1,5 +1,7 @@
+// routes/shopRoutes.js
 const express = require("express");
 const router = express.Router();
+const multer = require("multer");
 const { auth } = require("../middleware/auth");
 const {
   createShop,
@@ -9,26 +11,23 @@ const {
   updateShop,
   deleteShop,
 } = require("../controller/shopController");
-const multer = require("multer");
-const path = require("path");
 
-// ===== MULTER SETUP =====
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/shops");
+// ===== MULTER MEMORY STORAGE =====
+const storage = multer.memoryStorage(); // Store file in memory as buffer
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
   },
-  filename: (req, file, cb) => {
-    cb(
-      null,
-      file.fieldname +
-        "-" +
-        Date.now() +
-        path.extname(file.originalname)
-    );
-  },
+  fileFilter: (req, file, cb) => {
+    // Check if file is an image
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  }
 });
-
-const upload = multer({ storage });
 
 // ===== ROUTES =====
 router.post("/", auth, upload.single("image"), createShop);

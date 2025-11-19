@@ -26,9 +26,13 @@ const shopSchema = new mongoose.Schema(
       {
         serviceName: { type: String, required: true },
         price: { type: Number, required: true },
+        image: { type: String } // Add image for services
       },
     ],
-    image: { type: String },
+    image: { 
+      public_id: { type: String }, // Cloudinary public_id
+      url: { type: String } // Cloudinary URL
+    },
     rating: { type: Number, default: 0 },
   },
   { timestamps: true }
@@ -90,7 +94,7 @@ const paymentSchema = new mongoose.Schema(
     booking: { type: mongoose.Schema.Types.ObjectId, ref: "Booking", required: true },
     amount: { type: Number, required: true },
     commission: { type: Number, required: true },
-    shopEarning: { type: Number, required: true },
+    shopEarning: { type: Number, requAired: true },
     method: { type: String, enum: ["mpesa", "card"], required: true },
     status: { type: String, enum: ["pending", "success", "failed"], default: "pending" },
     transactionRef: { type: String, required: true },

@@ -1,10 +1,7 @@
+// controller/shopController.js
 const { Shop } = require("../models/model");
+const { uploadToCloudinary, deleteFromCloudinary } = require("../config/cloudinary");
 
-/**
- * @desc Create new shop
- * @route POST /shops
- * @access Private (Shop owner)
- */
 exports.createShop = async (req, res) => {
   try {
     const { name, location, description, services } = req.body;
@@ -48,19 +45,44 @@ exports.createShop = async (req, res) => {
       servicesArray = [];
     }
 
+    // Handle image upload to Cloudinary
+    let imageData = {};
+    if (req.file && req.file.buffer) {
+      try {
+        const uploadResult = await uploadToCloudinary(
+          req.file.buffer, 
+          'shops',
+          { width: 800, height: 600, crop: 'limit' }
+        );
+        
+        imageData = {
+          public_id: uploadResult.public_id,
+          url: uploadResult.secure_url
+        };
+        
+        console.log("Image uploaded to Cloudinary:", imageData);
+      } catch (uploadError) {
+        console.error("Error uploading image to Cloudinary:", uploadError);
+        return res.status(500).json({
+          message: "Error uploading image",
+          error: uploadError.message
+        });
+      }
+    }
+
     const shop = new Shop({
       owner: req.user.userId,
       name: name.trim(),
       location: location.trim(),
       description: description.trim(),
       services: servicesArray,
-      image: req.file ? `/uploads/shops/${req.file.filename}` : "",
+      image: imageData,
     });
 
     await shop.save();
     await shop.populate("owner", "name email");
 
-    console.log("Shop created successfully:", shop._id);
+    console.log("Shop created successfully with Cloudinary image:", shop._id);
 
     res.status(201).json({
       message: "Shop created successfully",
@@ -75,74 +97,6 @@ exports.createShop = async (req, res) => {
   }
 };
 
-/**
- * @desc Get all shops (public)
- * @route GET /shops
- */
-exports.getAllShops = async (req, res) => {
-  try {
-    const shops = await Shop.find().populate("owner", "name email");
-    res.status(200).json(shops);
-  } catch (error) {
-    console.error("Error fetching shops:", error);
-    res.status(500).json({
-      message: "Error fetching shops",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * @desc Get shops owned by the logged-in user
- * @route GET /shops/my
- * @access Private (Shop owner)
- */
-exports.getMyShops = async (req, res) => {
-  try {
-    console.log("Fetching shops for user:", req.user.userId);
-
-    const shops = await Shop.find({ owner: req.user.userId })
-      .populate("owner", "name email")
-      .sort({ createdAt: -1 });
-
-    console.log("Found shops for user:", shops.length);
-    res.status(200).json(shops);
-  } catch (error) {
-    console.error("Error fetching user shops:", error);
-    res.status(500).json({
-      message: "Error fetching your shops",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * @desc Get single shop by ID
- * @route GET /shops/:id
- */
-exports.getShopById = async (req, res) => {
-  try {
-    const shop = await Shop.findById(req.params.id).populate(
-      "owner",
-      "name email"
-    );
-    if (!shop)
-      return res.status(404).json({ message: "Shop not found" });
-    res.status(200).json(shop);
-  } catch (error) {
-    console.error("Error fetching shop:", error);
-    res.status(500).json({
-      message: "Error fetching shop",
-      error: error.message,
-    });
-  }
-};
-
-/**
- * @desc Update shop details
- * @route PUT /shops/:id
- * @access Private (Shop owner or Admin)
- */
 exports.updateShop = async (req, res) => {
   try {
     const shop = await Shop.findById(req.params.id);
@@ -187,9 +141,35 @@ exports.updateShop = async (req, res) => {
       }
     }
 
-    // Handle new image upload
-    if (req.file) {
-      updateData.image = `/uploads/shops/${req.file.filename}`;
+    // Handle new image upload to Cloudinary
+    if (req.file && req.file.buffer) {
+      try {
+        // Delete old image from Cloudinary if exists
+        if (shop.image && shop.image.public_id) {
+          await deleteFromCloudinary(shop.image.public_id);
+          console.log("Deleted old image from Cloudinary:", shop.image.public_id);
+        }
+
+        // Upload new image
+        const uploadResult = await uploadToCloudinary(
+          req.file.buffer,
+          'shops',
+          { width: 800, height: 600, crop: 'limit' }
+        );
+
+        updateData.image = {
+          public_id: uploadResult.public_id,
+          url: uploadResult.secure_url
+        };
+        
+        console.log("New image uploaded to Cloudinary:", updateData.image);
+      } catch (uploadError) {
+        console.error("Error uploading new image:", uploadError);
+        return res.status(500).json({
+          message: "Error uploading image",
+          error: uploadError.message
+        });
+      }
     }
 
     console.log("Updating shop with data:", updateData);
@@ -213,11 +193,6 @@ exports.updateShop = async (req, res) => {
   }
 };
 
-/**
- * @desc Delete shop
- * @route DELETE /shops/:id
- * @access Private (Shop owner or Admin)
- */
 exports.deleteShop = async (req, res) => {
   try {
     const shop = await Shop.findById(req.params.id);
@@ -233,12 +208,73 @@ exports.deleteShop = async (req, res) => {
         .json({ message: "You are not authorized to perform this action" });
     }
 
+    // Delete image from Cloudinary if exists
+    if (shop.image && shop.image.public_id) {
+      try {
+        await deleteFromCloudinary(shop.image.public_id);
+        console.log("Deleted shop image from Cloudinary:", shop.image.public_id);
+      } catch (deleteError) {
+        console.error("Error deleting image from Cloudinary:", deleteError);
+      }
+    }
+
     await Shop.findByIdAndDelete(req.params.id);
     res.status(200).json({ message: "Shop deleted successfully" });
   } catch (error) {
     console.error("Error deleting shop:", error);
     res.status(500).json({
       message: "Error deleting shop",
+      error: error.message,
+    });
+  }
+};
+
+// Keep other methods the same
+exports.getAllShops = async (req, res) => {
+  try {
+    const shops = await Shop.find().populate("owner", "name email");
+    res.status(200).json(shops);
+  } catch (error) {
+    console.error("Error fetching shops:", error);
+    res.status(500).json({
+      message: "Error fetching shops",
+      error: error.message,
+    });
+  }
+};
+
+exports.getMyShops = async (req, res) => {
+  try {
+    console.log("Fetching shops for user:", req.user.userId);
+
+    const shops = await Shop.find({ owner: req.user.userId })
+      .populate("owner", "name email")
+      .sort({ createdAt: -1 });
+
+    console.log("Found shops for user:", shops.length);
+    res.status(200).json(shops);
+  } catch (error) {
+    console.error("Error fetching user shops:", error);
+    res.status(500).json({
+      message: "Error fetching your shops",
+      error: error.message,
+    });
+  }
+};
+
+exports.getShopById = async (req, res) => {
+  try {
+    const shop = await Shop.findById(req.params.id).populate(
+      "owner",
+      "name email"
+    );
+    if (!shop)
+      return res.status(404).json({ message: "Shop not found" });
+    res.status(200).json(shop);
+  } catch (error) {
+    console.error("Error fetching shop:", error);
+    res.status(500).json({
+      message: "Error fetching shop",
       error: error.message,
     });
   }

@@ -3,17 +3,24 @@ const { initiateSTKPush } = require("../helpers/mpesa");
 
 const COMMISSION_RATE = 0.05;
 
-/**
- * 1️⃣ CREATE PAYMENT + TRIGGER STK PUSH
- */
 exports.createPayment = async (req, res) => {
   try {
+    console.log('🔔 Create Payment Request:', req.body);
+    
     const { booking: bookingId, phone } = req.body;
+
+    if (!bookingId || !phone) {
+      return res.status(400).json({ 
+        message: "Missing required fields: booking and phone" 
+      });
+    }
 
     const booking = await Booking.findById(bookingId);
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
+
+    console.log('📦 Booking found - Amount:', booking.totalPrice);
 
     const amount = booking.totalPrice;
     const commission = amount * COMMISSION_RATE;
@@ -29,46 +36,74 @@ exports.createPayment = async (req, res) => {
       status: "pending",
     });
 
+    console.log('💳 Payment record created:', payment._id);
+
     // Send STK Push
+    console.log('📱 Initiating STK Push to:', phone, 'Amount:', amount);
+    
     const stkPush = await initiateSTKPush(
       phone,
       amount,
-      payment._id.toString() // used as AccountReference
+      payment._id.toString()
     );
+
+    console.log('✅ STK Push Response:', stkPush);
+
+    if (!stkPush.CheckoutRequestID) {
+      throw new Error('No CheckoutRequestID in STK response');
+    }
 
     // Save checkoutRequestId so callback matches it
     payment.checkoutRequestId = stkPush.CheckoutRequestID;
     await payment.save();
 
+    console.log('🎉 Payment initiation completed successfully');
+    
     res.status(200).json({
-      message: "STK Push initiated",
-      payment,
-      stkPush,
+      message: "STK Push initiated successfully",
+      payment: {
+        _id: payment._id,
+        amount: payment.amount,
+        status: payment.status
+      },
+      stkPush: {
+        CheckoutRequestID: stkPush.CheckoutRequestID,
+        ResponseCode: stkPush.ResponseCode,
+        ResponseDescription: stkPush.ResponseDescription
+      }
     });
+
   } catch (error) {
-    console.error("STK Error:", error.response?.data || error.message);
+    console.error('❌ STK Error:', error.response?.data || error.message);
+    
     res.status(500).json({
       message: "Failed to initiate MPesa STK Push",
       error: error.message,
+      details: error.response?.data || 'No additional details'
     });
   }
 };
 
-/**
- * 2️⃣ CALLBACK FROM SAFARICOM
- */
 exports.mpesaCallback = async (req, res) => {
   try {
+    console.log('📞 MPesa Callback received:', req.body);
+    
     const callback = req.body.Body.stkCallback;
 
     const checkoutRequestID = callback.CheckoutRequestID;
     const resultCode = callback.ResultCode;
     const resultDesc = callback.ResultDesc;
 
+    console.log('Callback details:', {
+      checkoutRequestID,
+      resultCode,
+      resultDesc
+    });
+
     const payment = await Payment.findOne({ checkoutRequestId: checkoutRequestID });
 
     if (!payment) {
-      console.log("Payment record not found for callback.");
+      console.log("❌ Payment record not found for callback.");
       return res.status(200).json({ message: "Callback received" });
     }
 
@@ -82,31 +117,31 @@ exports.mpesaCallback = async (req, res) => {
       booking.status = "confirmed";
       booking.payment = payment._id;
       await booking.save();
+      
+      console.log('✅ Payment successful for booking:', payment.booking);
     } else {
       // FAILED PAYMENT
       payment.status = "failed";
       payment.failureReason = resultDesc;
       await payment.save();
+      
+      console.log('❌ Payment failed for booking:', payment.booking, 'Reason:', resultDesc);
     }
 
-    res.status(200).json({ message: "Callback processed" });
+    res.status(200).json({ message: "Callback processed successfully" });
 
   } catch (error) {
-    console.error("Callback error:", error.message);
+    console.error("❌ Callback error:", error.message);
     res.status(500).json({ error: error.message });
   }
 };
 
-/**
- * 3️⃣ GET PAYMENTS BASED ON ROLE
- */
 exports.getPayments = async (req, res) => {
   try {
     let payments;
 
     if (req.user.role === "admin") {
       payments = await Payment.find().populate("booking");
-
     } else if (req.user.role === "shop") {
       payments = await Payment.find()
         .populate({
@@ -114,9 +149,7 @@ exports.getPayments = async (req, res) => {
           populate: { path: "shop", match: { owner: req.user.userId } },
         })
         .lean();
-
       payments = payments.filter(p => p.booking?.shop);
-
     } else {
       payments = await Payment.find()
         .populate({
