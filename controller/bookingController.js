@@ -2,6 +2,65 @@ const mongoose = require("mongoose");
 const { Booking, Shop, Cart } = require("../models/model");
 
 /**
+ * @desc Create Individual Booking (without cart)
+ * @route POST /booking
+ * @access Private (Customer only)
+ */
+exports.createBooking = async (req, res) => {
+  try {
+    const { shop, services, dateTime } = req.body;
+    const customerId = req.user.userId;
+
+    // Validate input
+    if (!shop || !services || !Array.isArray(services) || services.length === 0 || !dateTime) {
+      return res.status(400).json({
+        message: "Shop, services array, and dateTime are required"
+      });
+    }
+
+    // Verify shop exists
+    const shopExists = await Shop.findById(shop);
+    if (!shopExists) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+
+    // Calculate total price
+    const totalPrice = services.reduce((sum, service) => sum + service.price, 0);
+
+    // Create booking
+    const booking = new Booking({
+      customer: customerId,
+      shop: shop,
+      services: services.map(service => ({
+        serviceName: service.serviceName,
+        price: service.price
+      })),
+      totalPrice,
+      dateTime: new Date(dateTime),
+      status: "pending",
+    });
+
+    await booking.save();
+    
+    // Populate details for response
+    await booking.populate('customer', 'name email phone');
+    await booking.populate('shop', 'name location');
+    
+    res.status(201).json({
+      message: "Booking created successfully",
+      booking
+    });
+
+  } catch (error) {
+    console.error("Create booking error:", error);
+    res.status(500).json({
+      message: "Error creating booking",
+      error: error.message
+    });
+  }
+};
+
+/**
  * @desc Checkout Cart → Create Booking
  * @route POST /booking/checkout
  * @access Private (Customer only)
