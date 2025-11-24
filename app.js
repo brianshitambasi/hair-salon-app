@@ -2,7 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
-const http = require("http"); // Add this
+const http = require("http");
 require("dotenv").config();
 
 const app = express();
@@ -57,7 +57,35 @@ io.on('connection', (socket) => {
 global.io = io;
 
 // ================= CORS Configuration =================
-// ... rest of your CORS config remains the same
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://fashion-nairobi.vercel.app"
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (e.g., Postman, server-to-server)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error("CORS not allowed for this origin: " + origin), false);
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
+}));
+
+// Correct preflight response handler
+app.options("*", (req, res) => {
+  res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.sendStatus(200);
+});
 
 // ================= Middleware =================
 app.use(express.json());
@@ -66,7 +94,65 @@ app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ================= Routes =================
-// ... your existing routes
+app.get("/", (req, res) => {
+  res.status(200).json({
+    message: "Hair Salon API is running",
+    timestamp: new Date().toISOString()
+  });
+});
+
+// User routes
+const userRoutes = require("./routes/userRoutes");
+app.use("/user", userRoutes);
+
+// Settings routes
+const settingsRoutes = require("./routes/settingsRoutes");
+app.use("/settings", settingsRoutes);
+
+// Booking routes
+const bookingRoutes = require("./routes/bookingRoutes");
+app.use("/booking", bookingRoutes);
+
+// Hairstyle routes
+const hairstyleRoutes = require("./routes/hairstyleRoutes");
+app.use("/hairstyle", hairstyleRoutes);
+
+// Payment routes
+const paymentRoutes = require("./routes/paymentRoutes");
+app.use("/payment", paymentRoutes);
+
+// Review routes
+const reviewRoutes = require("./routes/reviewRoutes");
+app.use("/review", reviewRoutes);
+
+// Shop routes
+const shopRoutes = require("./routes/shopRoutes");
+app.use("/shop", shopRoutes);
+
+// Cart routes
+const cartRoutes = require("./routes/cartRoutes");
+app.use("/cart", cartRoutes);
+
+// Product routes
+const productRoutes = require("./routes/productRoutes");
+app.use("/product", productRoutes);
+
+// ================= NOTIFICATION ROUTES =================
+const notificationRoutes = require("./routes/notificationRoutes");
+app.use("/notifications", notificationRoutes);
+
+// ================= ADMIN ROUTES =================
+const adminRoutes = require("./routes/admin");
+app.use("/admin", adminRoutes);
+
+// Health Check
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    message: "Server healthy",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development"
+  });
+});
 
 // ================= Database Connection =================
 mongoose
@@ -97,7 +183,6 @@ app.use((req, res) => {
 
 // ================= Start Server =================
 const PORT = process.env.PORT || 3002;
-// Change app.listen to server.listen
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || "development"}`);
