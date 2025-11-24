@@ -1,6 +1,6 @@
-// controller/shopController.js
 const { Shop } = require("../models/model");
 const { uploadToCloudinary, deleteFromCloudinary } = require("../config/cloudinary");
+const { notificationService } = require("./notificationController"); // Add this import
 
 exports.createShop = async (req, res) => {
   try {
@@ -83,6 +83,28 @@ exports.createShop = async (req, res) => {
     await shop.populate("owner", "name email");
 
     console.log("Shop created successfully with Cloudinary image:", shop._id);
+
+    // ================= NOTIFICATION: Shop Created =================
+    await notificationService.createNotification(
+      req.user.userId,
+      "Shop Created Successfully! 🎉",
+      `Your shop "${name}" is now live. Start adding services and accepting bookings!`,
+      "system",
+      shop._id,
+      `/shop/${shop._id}`,
+      "high"
+    );
+
+    // ================= NOTIFICATION: Next Steps =================
+    await notificationService.createNotification(
+      req.user.userId,
+      "Next Steps for Your Shop 🛠️",
+      "Complete your shop setup by adding business hours, contact info, and more services.",
+      "system",
+      null,
+      `/shop/${shop._id}/setup`,
+      "medium"
+    );
 
     res.status(201).json({
       message: "Shop created successfully",
@@ -180,6 +202,17 @@ exports.updateShop = async (req, res) => {
       { new: true, runValidators: true }
     ).populate("owner", "name email");
 
+    // ================= NOTIFICATION: Shop Updated =================
+    await notificationService.createNotification(
+      shop.owner,
+      "Shop Updated ✅",
+      `Your shop "${updatedShop.name}" has been updated successfully.`,
+      "system",
+      updatedShop._id,
+      `/shop/${updatedShop._id}`,
+      "medium"
+    );
+
     res.status(200).json({
       message: "Shop updated successfully",
       shop: updatedShop,
@@ -208,6 +241,17 @@ exports.deleteShop = async (req, res) => {
         .json({ message: "You are not authorized to perform this action" });
     }
 
+    // ================= NOTIFICATION: Shop Deleted =================
+    await notificationService.createNotification(
+      shop.owner,
+      "Shop Deleted 🗑️",
+      `Your shop "${shop.name}" has been deleted.`,
+      "system",
+      null,
+      "/shop",
+      "high"
+    );
+
     // Delete image from Cloudinary if exists
     if (shop.image && shop.image.public_id) {
       try {
@@ -229,7 +273,7 @@ exports.deleteShop = async (req, res) => {
   }
 };
 
-// Keep other methods the same
+// Keep other methods the same (they don't need notifications)
 exports.getAllShops = async (req, res) => {
   try {
     const shops = await Shop.find().populate("owner", "name email");

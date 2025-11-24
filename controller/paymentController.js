@@ -1,5 +1,6 @@
-const { Payment, Booking } = require("../models/model");
+const { Payment, Booking, Shop } = require("../models/model");
 const { initiateSTKPush } = require("../helpers/mpesa");
+const { notificationService } = require("./notificationController"); // Add this import
 
 const COMMISSION_RATE = 0.05;
 
@@ -15,7 +16,10 @@ exports.createPayment = async (req, res) => {
       });
     }
 
-    const booking = await Booking.findById(bookingId);
+    const booking = await Booking.findById(bookingId)
+      .populate("customer")
+      .populate("shop");
+      
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
@@ -29,6 +33,8 @@ exports.createPayment = async (req, res) => {
     // Create pending payment
     const payment = await Payment.create({
       booking: bookingId,
+      customer: booking.customer._id,
+      shop: booking.shop._id,
       amount,
       commission,
       shopEarning,
@@ -37,6 +43,13 @@ exports.createPayment = async (req, res) => {
     });
 
     console.log('💳 Payment record created:', payment._id);
+
+    // ================= NOTIFICATION: Payment Initiated =================
+    await notificationService.notifyPaymentStatus(
+      payment,
+      booking.customer._id,
+      booking.shop.owner
+    );
 
     // Send STK Push
     console.log('📱 Initiating STK Push to:', phone, 'Amount:', amount);
@@ -100,7 +113,9 @@ exports.mpesaCallback = async (req, res) => {
       resultDesc
     });
 
-    const payment = await Payment.findOne({ checkoutRequestId: checkoutRequestID });
+    const payment = await Payment.findOne({ checkoutRequestId: checkoutRequestID })
+      .populate("customer")
+      .populate("shop");
 
     if (!payment) {
       console.log("❌ Payment record not found for callback.");
@@ -113,12 +128,30 @@ exports.mpesaCallback = async (req, res) => {
       await payment.save();
 
       // Update booking
-      const booking = await Booking.findById(payment.booking);
+      const booking = await Booking.findById(payment.booking)
+        .populate("customer")
+        .populate("shop");
       booking.status = "confirmed";
       booking.payment = payment._id;
       await booking.save();
       
       console.log('✅ Payment successful for booking:', payment.booking);
+      
+      // ================= NOTIFICATION: Payment Success =================
+      await notificationService.notifyPaymentStatus(
+        payment,
+        payment.customer._id,
+        payment.shop.owner
+      );
+      
+      // ================= NOTIFICATION: Booking Confirmed =================
+      await notificationService.notifyBookingStatus(
+        booking,
+        "confirmed",
+        booking.customer._id,
+        booking.shop.owner
+      );
+      
     } else {
       // FAILED PAYMENT
       payment.status = "failed";
@@ -126,6 +159,13 @@ exports.mpesaCallback = async (req, res) => {
       await payment.save();
       
       console.log('❌ Payment failed for booking:', payment.booking, 'Reason:', resultDesc);
+      
+      // ================= NOTIFICATION: Payment Failed =================
+      await notificationService.notifyPaymentStatus(
+        payment,
+        payment.customer._id,
+        payment.shop.owner
+      );
     }
 
     res.status(200).json({ message: "Callback processed successfully" });
@@ -141,13 +181,18 @@ exports.getPayments = async (req, res) => {
     let payments;
 
     if (req.user.role === "admin") {
-      payments = await Payment.find().populate("booking");
+      payments = await Payment.find()
+        .populate("customer", "name email")
+        .populate("shop", "name location")
+        .populate("booking");
     } else if (req.user.role === "shop") {
       payments = await Payment.find()
         .populate({
           path: "booking",
           populate: { path: "shop", match: { owner: req.user.userId } },
         })
+        .populate("customer", "name email")
+        .populate("shop", "name location")
         .lean();
       payments = payments.filter(p => p.booking?.shop);
     } else {
@@ -156,12 +201,15 @@ exports.getPayments = async (req, res) => {
           path: "booking",
           match: { customer: req.user.userId },
         })
+        .populate("customer", "name email")
+        .populate("shop", "name location")
         .lean();
     }
 
     res.status(200).json(payments);
 
   } catch (error) {
+    console.error("Get payments error:", error);
     res.status(500).json({
       message: "Error fetching payments",
       error: error.message,

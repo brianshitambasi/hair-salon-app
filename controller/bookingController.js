@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const { Booking, Shop, Cart } = require("../models/model");
+const { notificationService } = require("./notificationController"); // Add this import
 
 /**
  * @desc Create Individual Booking (without cart)
@@ -42,6 +43,16 @@ exports.createBooking = async (req, res) => {
 
     await booking.save();
     
+    // ================= NOTIFICATION: New Booking Request =================
+    await notificationService.notifyNewBookingRequest(booking, shopExists.owner);
+    
+    // ================= NOTIFICATION: Customer Confirmation =================
+    await notificationService.notifyBookingStatus(
+      booking,
+      "pending",
+      customerId
+    );
+    
     // Populate details for response
     await booking.populate('customer', 'name email phone');
     await booking.populate('shop', 'name location');
@@ -74,6 +85,7 @@ exports.checkoutCart = async (req, res) => {
       return res.status(400).json({ message: "Your cart is empty" });
 
     const shopId = cart.items[0].shop._id;
+    const shop = await Shop.findById(shopId);
     const totalPrice = cart.total;
 
     const booking = new Booking({
@@ -89,11 +101,28 @@ exports.checkoutCart = async (req, res) => {
     });
 
     await booking.save();
+    
+    // ================= NOTIFICATION: New Booking Request =================
+    await notificationService.notifyNewBookingRequest(booking, shop.owner);
+    
+    // ================= NOTIFICATION: Customer Confirmation =================
+    await notificationService.notifyBookingStatus(
+      booking,
+      "pending",
+      customerId
+    );
+    
     await Cart.deleteOne({ _id: cart._id });
 
-    res.status(201).json({ message: "Booking created successfully", booking });
+    res.status(201).json({ 
+      message: "Booking created successfully", 
+      booking 
+    });
   } catch (error) {
-    res.status(500).json({ message: "Error creating booking", error: error.message });
+    res.status(500).json({ 
+      message: "Error creating booking", 
+      error: error.message 
+    });
   }
 };
 
@@ -117,7 +146,10 @@ exports.getBookings = async (req, res) => {
 
     res.status(200).json(bookings);
   } catch (err) {
-    res.status(500).json({ message: "Error fetching bookings", error: err.message });
+    res.status(500).json({ 
+      message: "Error fetching bookings", 
+      error: err.message 
+    });
   }
 };
 
@@ -128,11 +160,13 @@ exports.getBookings = async (req, res) => {
 exports.updateBooking = async (req, res) => {
   try {
     const { status } = req.body;
-    const booking = await Booking.findById(req.params.id).populate("shop");
+    const booking = await Booking.findById(req.params.id)
+      .populate("shop")
+      .populate("customer");
 
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-    const isCustomer = booking.customer.toString() === req.user.userId;
+    const isCustomer = booking.customer._id.toString() === req.user.userId;
     const isShopOwner = booking.shop.owner.toString() === req.user.userId;
     const isAdmin = req.user.role === "admin";
 
@@ -149,9 +183,37 @@ exports.updateBooking = async (req, res) => {
     }
 
     await booking.save();
-    res.status(200).json({ message: "Booking updated", booking });
+    
+    // ================= NOTIFICATION: Booking Status Update =================
+    await notificationService.notifyBookingStatus(
+      booking,
+      status,
+      booking.customer._id,
+      booking.shop.owner
+    );
+    
+    // ================= NOTIFICATION: Booking Reminder (if confirmed and for tomorrow) =================
+    if (status === "confirmed") {
+      const bookingDate = new Date(booking.dateTime);
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      // Check if booking is for tomorrow (same day next day)
+      if (bookingDate.toDateString() === tomorrow.toDateString()) {
+        await notificationService.notifyBookingReminder(booking, booking.customer._id);
+      }
+    }
+
+    res.status(200).json({ 
+      message: "Booking updated", 
+      booking 
+    });
   } catch (err) {
-    res.status(500).json({ message: "Error updating booking", error: err.message });
+    console.error("Update booking error:", err);
+    res.status(500).json({ 
+      message: "Error updating booking", 
+      error: err.message 
+    });
   }
 };
 
@@ -161,10 +223,13 @@ exports.updateBooking = async (req, res) => {
  */
 exports.deleteBooking = async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id);
+    const booking = await Booking.findById(req.params.id)
+      .populate("shop")
+      .populate("customer");
+
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-    const isCustomer = booking.customer.toString() === req.user.userId;
+    const isCustomer = booking.customer._id.toString() === req.user.userId;
     const isAdmin = req.user.role === "admin";
 
     if (!isCustomer && !isAdmin)
@@ -173,9 +238,25 @@ exports.deleteBooking = async (req, res) => {
     if (["confirmed", "completed"].includes(booking.status) && !isAdmin)
       return res.status(400).json({ message: "Cannot delete confirmed booking" });
 
+    // ================= NOTIFICATION: Booking Cancelled =================
+    if (isCustomer) {
+      await notificationService.notifyBookingStatus(
+        booking,
+        "cancelled",
+        booking.customer._id,
+        booking.shop.owner
+      );
+    }
+
     await booking.deleteOne();
-    res.status(200).json({ message: "Booking deleted successfully" });
+    res.status(200).json({ 
+      message: "Booking deleted successfully" 
+    });
   } catch (err) {
-    res.status(500).json({ message: "Error deleting booking", error: err.message });
+    console.error("Delete booking error:", err);
+    res.status(500).json({ 
+      message: "Error deleting booking", 
+      error: err.message 
+    });
   }
 };
