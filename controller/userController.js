@@ -1,7 +1,7 @@
 const { User } = require("../models/model");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
-const { notificationService } = require("./notificationController"); // Add this import
+const { notificationService } = require("./notificationController");
 
 // ========================
 // Register User
@@ -16,10 +16,11 @@ exports.registerUser = async (req, res) => {
 
     role = role.toLowerCase();
 
-    // Fix: Match the enum values from your schema
     const validRoles = ["shop", "customer", "admin"];
     if (!validRoles.includes(role)) {
-      return res.status(400).json({ message: "Invalid role. Use: shop, customer, or admin" });
+      return res
+        .status(400)
+        .json({ message: "Invalid role. Use: shop, customer, or admin" });
     }
 
     const existingUser = await User.findOne({ email });
@@ -40,7 +41,7 @@ exports.registerUser = async (req, res) => {
 
     await user.save();
 
-    // ================= NOTIFICATION: Welcome Message =================
+    // Notification: Welcome
     await notificationService.createNotification(
       user._id,
       "Welcome to Our Platform! 🎉",
@@ -51,7 +52,7 @@ exports.registerUser = async (req, res) => {
       "medium"
     );
 
-    // ================= NOTIFICATION: Account Setup Guide =================
+    // Notification: Setup Guide
     if (role === "shop") {
       await notificationService.createNotification(
         user._id,
@@ -99,7 +100,9 @@ exports.loginUser = async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
+      return res
+        .status(400)
+        .json({ message: "Email and password are required" });
     }
 
     const user = await User.findOne({ email });
@@ -112,7 +115,7 @@ exports.loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid password" });
     }
 
-    // Update last login and login count
+    // Update login data
     user.lastLogin = new Date();
     user.loginCount = (user.loginCount || 0) + 1;
     await user.save();
@@ -123,7 +126,7 @@ exports.loginUser = async (req, res) => {
       { expiresIn: "12h" }
     );
 
-    // ================= NOTIFICATION: Login Alert =================
+    // Notification: Login Alert
     const loginTime = new Date().toLocaleString();
     await notificationService.createNotification(
       user._id,
@@ -135,7 +138,7 @@ exports.loginUser = async (req, res) => {
       "high"
     );
 
-    // ================= NOTIFICATION: Welcome Back =================
+    // Notification: Welcome Back
     if (user.loginCount > 1) {
       await notificationService.createNotification(
         user._id,
@@ -143,7 +146,7 @@ exports.loginUser = async (req, res) => {
         `Good to see you again, ${user.name}!`,
         "system",
         null,
-        role === "shop" ? "/shop/dashboard" : "/dashboard",
+        user.role === "shop" ? "/shop/dashboard" : "/dashboard", // ✅ FIXED HERE
         "low"
       );
     }
@@ -233,7 +236,6 @@ exports.updateUserProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Track what was updated for notification
     const updatedFields = [];
     if (name && name !== user.name) updatedFields.push("name");
     if (phone && phone !== user.phone) updatedFields.push("phone");
@@ -245,7 +247,6 @@ exports.updateUserProfile = async (req, res) => {
       { new: true, runValidators: true }
     ).select("-password");
 
-    // ================= NOTIFICATION: Profile Updated =================
     if (updatedFields.length > 0) {
       await notificationService.createNotification(
         userId,
@@ -277,8 +278,8 @@ exports.changePassword = async (req, res) => {
     const userId = req.user.userId;
 
     if (!currentPassword || !newPassword) {
-      return res.status(400).json({ 
-        message: "Current password and new password are required" 
+      return res.status(400).json({
+        message: "Current password and new password are required",
       });
     }
 
@@ -287,7 +288,10 @@ exports.changePassword = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+    const isValidPassword = await bcrypt.compare(
+      currentPassword,
+      user.password
+    );
     if (!isValidPassword) {
       return res.status(400).json({ message: "Current password is incorrect" });
     }
@@ -296,7 +300,6 @@ exports.changePassword = async (req, res) => {
     user.password = hashedPassword;
     await user.save();
 
-    // ================= NOTIFICATION: Password Changed =================
     await notificationService.createNotification(
       userId,
       "Password Changed 🔒",

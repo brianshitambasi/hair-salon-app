@@ -1,191 +1,58 @@
-const express = require("express");
-const mongoose = require("mongoose");
-const cors = require("cors");
-const path = require("path");
-const http = require("http");
 require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const mongoose = require("mongoose");
 
 const app = express();
 
-// ================= Create HTTP Server =================
-const server = http.createServer(app);
-
-// ================= Socket.IO Setup =================
-const { Server } = require("socket.io");
-const io = new Server(server, {
-  cors: {
-    origin: function (origin, callback) {
-      const allowedOrigins = [
-        "http://localhost:3000",
-        "https://fashion-nairobi.vercel.app"
-      ];
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("CORS not allowed for this origin"), false);
-      }
-    },
-    methods: ["GET", "POST"],
-    credentials: true
-  }
-});
-
-// Store connected users
-const connectedUsers = new Map();
-
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-
-  // Join user to their personal room
-  socket.on('join-user', (userId) => {
-    socket.join(`user_${userId}`);
-    connectedUsers.set(socket.id, userId);
-    console.log(`User ${userId} joined their room`);
-  });
-
-  // Handle disconnection
-  socket.on('disconnect', () => {
-    const userId = connectedUsers.get(socket.id);
-    if (userId) {
-      connectedUsers.delete(socket.id);
-      console.log(`User ${userId} disconnected`);
-    }
-  });
-});
-
-// Make io accessible to our routes and controllers
-global.io = io;
-
-// ================= CORS Configuration =================
-const allowedOrigins = [
-  "http://localhost:3000",
-  "https://fashion-nairobi.vercel.app"
-];
-
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (e.g., Postman, server-to-server)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    } else {
-      return callback(new Error("CORS not allowed for this origin: " + origin), false);
-    }
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
-}));
-
-// Correct preflight response handler
-app.options("*", (req, res) => {
-  res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.sendStatus(200);
-});
-
-// ================= Middleware =================
+// ================= MIDDLEWARE =================
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cors());
 
-// Serve uploaded images
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
-// ================= Routes =================
+// ================= ROOT ROUTE =================
 app.get("/", (req, res) => {
-  res.status(200).json({
-    message: "Hair Salon API is running",
-    timestamp: new Date().toISOString()
-  });
+    res.json({
+        message: "Fashion API is running",
+        timestamp: new Date().toISOString()
+    });
 });
 
-// User routes
-const userRoutes = require("./routes/userRoutes");
-app.use("/user", userRoutes);
-
-// Settings routes
-const settingsRoutes = require("./routes/settingsRoutes");
-app.use("/settings", settingsRoutes);
-
-// Booking routes
-const bookingRoutes = require("./routes/bookingRoutes");
-app.use("/booking", bookingRoutes);
-
-// Hairstyle routes
-const hairstyleRoutes = require("./routes/hairstyleRoutes");
-app.use("/hairstyle", hairstyleRoutes);
-
-// Payment routes
-const paymentRoutes = require("./routes/paymentRoutes");
-app.use("/payment", paymentRoutes);
-
-// Review routes
-const reviewRoutes = require("./routes/reviewRoutes");
-app.use("/review", reviewRoutes);
-
-// Shop routes
-const shopRoutes = require("./routes/shopRoutes");
-app.use("/shop", shopRoutes);
-
-// Cart routes
-const cartRoutes = require("./routes/cartRoutes");
-app.use("/cart", cartRoutes);
-
-// Product routes
-const productRoutes = require("./routes/productRoutes");
-app.use("/product", productRoutes);
-
-// ================= NOTIFICATION ROUTES =================
-const notificationRoutes = require("./routes/notificationRoutes");
-app.use("/notifications", notificationRoutes);
-
-// ================= ADMIN ROUTES =================
-const adminRoutes = require("./routes/admin");
-app.use("/admin", adminRoutes);
-
-// Health Check
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    message: "Server healthy",
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || "development"
-  });
-});
-
-// ================= Database Connection =================
-mongoose
-  .connect(process.env.MONGO_URI, {
+// ================= DATABASE CONNECTION =================
+mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true
-  })
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch(err => console.error("❌ MongoDB connection error:", err.message));
+})
+.then(() => console.log("✅ MongoDB connected"))
+.catch((err) => console.error("❌ MongoDB connection error:", err));
 
-// ================= Error Handling Middleware =================
+// ================= ROUTES =================
+app.use("/user", require("./routes/userRoutes"));
+app.use("/settings", require("./routes/settingsRoutes"));
+app.use("/booking", require("./routes/bookingRoutes"));
+app.use("/hairstyle", require("./routes/hairstyleRoutes"));
+app.use("/payment", require("./routes/paymentRoutes"));
+app.use("/review", require("./routes/reviewRoutes"));
+app.use("/shop", require("./routes/shopRoutes"));
+app.use("/cart", require("./routes/cartRoutes"));
+app.use("/product", require("./routes/productRoutes"));
+app.use("/notifications", require("./routes/notificationRoutes"));
+app.use("/admin", require("./routes/adminRoutes"));
+
+// ================= GLOBAL ERROR HANDLER =================
 app.use((err, req, res, next) => {
-  console.error("🔥 Error:", err.stack);
-  res.status(500).json({
-    message: "Server Error",
-    error: process.env.NODE_ENV === "production" ? null : err.message
-  });
+    console.error("❌ ERROR:", err.message);
+    res.status(err.status || 500).json({
+        error: true,
+        message: err.message || "Server Error"
+    });
 });
 
-// ================= 404 Handler =================
-app.use((req, res) => {
-  res.status(404).json({
-    message: "Route not found",
-    path: req.path,
-    method: req.method
-  });
+// ================= SERVER LISTENER =================
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
 });
 
-// ================= Start Server =================
-const PORT = process.env.PORT || 3002;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📍 Environment: ${process.env.NODE_ENV || "development"}`);
-  console.log(`🔔 Notification system: ACTIVE`);
-  console.log(`👑 Admin routes available at: /admin/*`);
-});
+// Export app for testing or further extensions
+module.exports = app;
