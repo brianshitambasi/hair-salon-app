@@ -12,7 +12,7 @@ const {
 
 const { auth } = require("../middleware/auth");
 
-// Auth routes
+// Public routes
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 
