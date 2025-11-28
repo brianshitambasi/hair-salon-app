@@ -81,44 +81,51 @@ cartSchema.pre("save", function (next) {
 });
 
 // ================= BOOKING SCHEMA =================
+
 const bookingSchema = new mongoose.Schema(
   {
     customer: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     shop: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", required: true },
+
     services: [
       {
         serviceName: { type: String, required: true },
         price: { type: Number, required: true },
-        duration: { type: Number }
-      },
+        duration: { type: Number, required: true }
+      }
     ],
-    totalPrice: { type: Number, required: true },
+
+    // FIXED: Make default values so validation never fails
+    totalPrice: { type: Number, default: 0 },
+    estimatedDuration: { type: Number, default: 0 },
+
     dateTime: { type: Date, required: true },
     endTime: { type: Date },
+
     status: {
       type: String,
       enum: ["pending", "confirmed", "completed", "cancelled", "no_show"],
-      default: "pending",
+      default: "pending"
     },
+
     payment: { type: mongoose.Schema.Types.ObjectId, ref: "Payment" },
     approvedByShop: { type: Boolean, default: false },
     cancelledByCustomer: { type: Boolean, default: false },
     cancellationReason: { type: String },
-    specialRequests: { type: String },
-    estimatedDuration: { type: Number } // Total minutes
+    specialRequests: { type: String }
   },
   { timestamps: true }
 );
 
+// AUTO-CALCULATE PRICE + DURATION + END TIME
 bookingSchema.pre("save", function (next) {
-  this.totalPrice = this.services.reduce((sum, s) => sum + s.price, 0);
+  this.totalPrice = this.services.reduce((sum, s) => sum + (s.price || 0), 0);
   this.estimatedDuration = this.services.reduce((sum, s) => sum + (s.duration || 0), 0);
-  
-  // Calculate end time
+
   if (this.dateTime && this.estimatedDuration) {
     this.endTime = new Date(this.dateTime.getTime() + this.estimatedDuration * 60000);
   }
-  
+
   next();
 });
 

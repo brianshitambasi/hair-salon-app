@@ -1,31 +1,5 @@
-const { Notification } = require('../models/model');
+const { Notification } = require('../models/model'); // ✅ correct import
 
-// ========================
-// Notification Service
-// ========================
-const notificationService = {
-  createNotification: async (userId, title, message, type, relatedId = null, actionUrl = null, priority = "medium") => {
-    try {
-      const notification = new Notification({
-        user: userId,
-        title,
-        message,
-        type,
-        relatedId,
-        actionUrl,
-        priority
-      });
-      return await notification.save();
-    } catch (error) {
-      console.error("Error creating notification:", error);
-      throw error;
-    }
-  }
-};
-
-// ========================
-// Notification Controller
-// ========================
 const notificationController = {
   getUserNotifications: async (req, res) => {
     try {
@@ -122,4 +96,4 @@ const notificationController = {
   }
 };
 
-module.exports = { notificationController, notificationService };
+module.exports = notificationController; // ✅ export correctly

@@ -1,6 +1,6 @@
 const express = require('express');
 const { auth } = require('../middleware/auth');
-const { notificationController } = require('../controller/notificationController');
+const notificationController = require('../controller/notificationController'); // ✅ default import
 
 const router = express.Router();
 
